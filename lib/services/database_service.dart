@@ -25,6 +25,7 @@ class DatabaseService {
   final dspStore = intMapStoreFactory.store('dsps');
   Uint8List? _dspMasterOverrideBytes;
   Uint8List? _areaMasterOverrideBytes;
+  Uint8List? _customerClassOverrideBytes;
   bool _attemptedLocationRepair = false;
 
   Future<String?> _persistedDspCsvPath() async {
@@ -37,6 +38,12 @@ class DatabaseService {
     if (kIsWeb) return null;
     final dir = await getApplicationDocumentsDirectory();
     return p.join(dir.path, 'area_master_override.csv');
+  }
+
+  Future<String?> _persistedCustomerClassPath() async {
+    if (kIsWeb) return null;
+    final dir = await getApplicationDocumentsDirectory();
+    return p.join(dir.path, 'customer_class_override.bin');
   }
 
   Future<String?> _persistedCmlPath() async {
@@ -103,6 +110,21 @@ class DatabaseService {
 
   Future<Uint8List?> _readPersistedAreaCsv() async {
     final path = await _persistedAreaCsvPath();
+    if (path == null) return null;
+    final file = File(path);
+    if (!await file.exists()) return null;
+    return Uint8List.fromList(await file.readAsBytes());
+  }
+
+  Future<void> _savePersistedCustomerClassFile(Uint8List bytes) async {
+    final path = await _persistedCustomerClassPath();
+    if (path == null) return;
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  Future<Uint8List?> _readPersistedCustomerClassFile() async {
+    final path = await _persistedCustomerClassPath();
     if (path == null) return null;
     final file = File(path);
     if (!await file.exists()) return null;
@@ -315,6 +337,80 @@ class DatabaseService {
     return rows;
   }
 
+  List<String> _parseCustomerClassRowsFromBytes(Uint8List bytes, {required bool isXlsx}) {
+    List<List<dynamic>> table;
+
+    if (isXlsx) {
+      final excel = xl.Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) return [];
+      final sheet = excel.tables.values.first;
+      table = sheet.rows
+          .map((row) => row.map((cell) => cell?.value?.toString() ?? '').toList())
+          .toList();
+    } else {
+      final csvContent = utf8
+          .decode(bytes, allowMalformed: true)
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n');
+      table = CsvToListConverter(eol: '\n', shouldParseNumbers: false).convert(csvContent);
+    }
+
+    if (table.isEmpty) return [];
+
+    final headerAliases = {
+      'party_classification_description',
+      'party classification description',
+      'party_classification',
+      'party classification',
+      'classification',
+      'customer_class',
+      'customer class',
+      'class',
+    };
+
+    int columnIndex = 0;
+    var startIndex = 0;
+    final firstRow = table.first;
+    if (firstRow.isNotEmpty) {
+      for (var i = 0; i < firstRow.length; i++) {
+        final raw = firstRow[i].toString().trim().toLowerCase();
+        if (raw.isNotEmpty && headerAliases.contains(raw)) {
+          columnIndex = i;
+          startIndex = 1;
+          break;
+        }
+      }
+    }
+
+    final seen = <String>{};
+    final values = <String>[];
+
+    for (var i = startIndex; i < table.length; i++) {
+      final row = table[i];
+      if (row.isEmpty) continue;
+
+      final value = (columnIndex < row.length ? row[columnIndex] : row.first)
+          .toString()
+          .trim();
+      if (value.isEmpty) continue;
+
+      final canonical = value.toLowerCase();
+      if (seen.add(canonical)) {
+        values.add(value);
+      }
+    }
+
+    return values;
+  }
+
+  List<String> _tryParseCustomerClassRowsFromBytes(Uint8List bytes, {required bool isXlsx}) {
+    try {
+      return _parseCustomerClassRowsFromBytes(bytes, isXlsx: isXlsx);
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
   Future<List<Map<String, String>>> _loadDspMasterRows() async {
     if (_dspMasterOverrideBytes != null) {
       final rows = _parseDspMasterFromBytes(_dspMasterOverrideBytes!);
@@ -354,6 +450,31 @@ class DatabaseService {
       return _parseAreaMasterFromBytes(assetBytes.buffer.asUint8List());
     } catch (_) {
       return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<List<String>> _loadCustomerClassRows() async {
+    if (_customerClassOverrideBytes != null) {
+      var rows = _tryParseCustomerClassRowsFromBytes(_customerClassOverrideBytes!, isXlsx: false);
+      if (rows.isNotEmpty) return rows;
+      rows = _tryParseCustomerClassRowsFromBytes(_customerClassOverrideBytes!, isXlsx: true);
+      if (rows.isNotEmpty) return rows;
+    }
+
+    final persistedBytes = await _readPersistedCustomerClassFile();
+    if (persistedBytes != null) {
+      _customerClassOverrideBytes = persistedBytes;
+      var rows = _tryParseCustomerClassRowsFromBytes(persistedBytes, isXlsx: false);
+      if (rows.isNotEmpty) return rows;
+      rows = _tryParseCustomerClassRowsFromBytes(persistedBytes, isXlsx: true);
+      if (rows.isNotEmpty) return rows;
+    }
+
+    try {
+      final assetBytes = await rootBundle.load('assets/Customer_Class.csv');
+      return _parseCustomerClassRowsFromBytes(assetBytes.buffer.asUint8List(), isXlsx: false);
+    } catch (_) {
+      return <String>[];
     }
   }
 
@@ -496,6 +617,17 @@ class DatabaseService {
 
     _areaMasterOverrideBytes = bytes;
     await _savePersistedAreaCsv(bytes);
+    return rows.length;
+  }
+
+  Future<int> importCustomerClassFile(Uint8List bytes, {required bool isXlsx}) async {
+    final rows = _parseCustomerClassRowsFromBytes(bytes, isXlsx: isXlsx);
+    if (rows.isEmpty) {
+      throw Exception('No valid party classification rows found in file.');
+    }
+
+    _customerClassOverrideBytes = bytes;
+    await _savePersistedCustomerClassFile(bytes);
     return rows.length;
   }
 
@@ -857,6 +989,10 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> loadAreaHierarchy() async {
     final rows = await _loadAreaMasterRows();
     return rows;
+  }
+
+  Future<List<String>> loadPartyClassifications() async {
+    return _loadCustomerClassRows();
   }
 
   Future<List<Map<String, dynamic>>> loadCustomerAreas() async {

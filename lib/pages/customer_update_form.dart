@@ -22,6 +22,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
 
   String? _selectedCoverageDay;
   String? _selectedWklyCoverage;
+  String? _selectedPartyClassification;
   String? _selectedProvince;
   String? _selectedCity;
   String? _selectedBarangay;
@@ -30,6 +31,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
   List<String> _provinces = [];
   List<String> _cities = [];
   List<String> _barangays = [];
+  List<String> _partyClassifications = [];
 
   final Map<String, String> _coverageDayMap = {
     'Monday': 'MON',
@@ -60,6 +62,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
     _nameController = TextEditingController(text: widget.customer.customerName);
     _selectedCoverageDay = _coverageDayMap[widget.customer.coverageDay] ?? widget.customer.coverageDay;
     _selectedWklyCoverage = _wklyCoverageMap[widget.customer.wklyCoverage] ?? widget.customer.wklyCoverage;
+    _selectedPartyClassification = widget.customer.partyClassificationDescription;
     _phoneController = TextEditingController(text: widget.customer.phone);
     _firstNameController = TextEditingController(text: widget.customer.firstName);
     _lastNameController = TextEditingController(text: widget.customer.lastName);
@@ -69,6 +72,22 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
     _selectedBarangay = widget.customer.barangay;
     _addressController = TextEditingController(text: widget.customer.address);
     _loadAreas();
+    _loadPartyClassifications();
+  }
+
+  Future<void> _loadPartyClassifications() async {
+    final values = await DatabaseService().loadPartyClassifications();
+    if (!mounted) return;
+
+    if (_selectedPartyClassification != null &&
+        _selectedPartyClassification!.trim().isNotEmpty &&
+        !values.contains(_selectedPartyClassification)) {
+      values.insert(0, _selectedPartyClassification!.trim());
+    }
+
+    setState(() {
+      _partyClassifications = values;
+    });
   }
 
   Future<void> _loadAreas() async {
@@ -117,6 +136,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
     _nameController.text = widget.customer.customerName;
     _selectedCoverageDay = _coverageDayMap[widget.customer.coverageDay] ?? widget.customer.coverageDay;
     _selectedWklyCoverage = _wklyCoverageMap[widget.customer.wklyCoverage] ?? widget.customer.wklyCoverage;
+    _selectedPartyClassification = widget.customer.partyClassificationDescription;
     _phoneController.text = widget.customer.phone;
     _firstNameController.text = widget.customer.firstName;
     _lastNameController.text = widget.customer.lastName;
@@ -133,6 +153,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
     if (_nameController.text != _originalCustomer.customerName) editedFields.add('customer_name');
     if (_selectedCoverageDay != (_coverageDayMap[_originalCustomer.coverageDay] ?? _originalCustomer.coverageDay)) editedFields.add('coverage_day');
     if (_selectedWklyCoverage != (_wklyCoverageMap[_originalCustomer.wklyCoverage] ?? _originalCustomer.wklyCoverage)) editedFields.add('wkly_coverage');
+    if ((_selectedPartyClassification ?? '') != _originalCustomer.partyClassificationDescription) editedFields.add('party_classification_description');
     if (_phoneController.text != _originalCustomer.phone) editedFields.add('phone');
     if (_firstNameController.text != _originalCustomer.firstName) editedFields.add('first_name');
     if (_lastNameController.text != _originalCustomer.lastName) editedFields.add('last_name');
@@ -156,7 +177,7 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
       province: _selectedProvince ?? '',
       status: _originalCustomer.status,
       retailEnvironment: _originalCustomer.retailEnvironment,
-      partyClassificationDescription: _originalCustomer.partyClassificationDescription,
+      partyClassificationDescription: _selectedPartyClassification ?? '',
       coverageDay: _selectedCoverageDay ?? '',
       wklyCoverage: _selectedWklyCoverage ?? '',
       freqCount: _originalCustomer.freqCount,
@@ -197,6 +218,14 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
               decoration: InputDecoration(labelText: 'Wkly Coverage'),
               items: _wklyCoverageMap.entries.map((e) => DropdownMenuItem(value: e.value, child: Text(e.key))).toList(),
               onChanged: (value) => setState(() => _selectedWklyCoverage = value),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _valueIfPresent(_partyClassifications, _selectedPartyClassification),
+              decoration: InputDecoration(labelText: 'Party Classification'),
+              items: _partyClassifications
+                  .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                  .toList(),
+              onChanged: (value) => setState(() => _selectedPartyClassification = value),
             ),
             TextField(controller: _phoneController, decoration: InputDecoration(labelText: 'Phone')),
             TextField(controller: _firstNameController, decoration: InputDecoration(labelText: 'First Name')),

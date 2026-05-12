@@ -136,6 +136,64 @@ class _CityBrgyPageState extends State<CityBrgyPage> {
     }
   }
 
+  Future<void> _importPartyClassificationUpdate() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Update Party Classification'),
+          content: const Text(
+            'Import a Party Classification file (CSV/XLSX) to refresh dropdown options used in Update Customer Info?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    final selected = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv', 'xlsx'],
+      withData: true,
+    );
+    if (selected == null || selected.files.isEmpty) return;
+
+    final file = selected.files.single;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to read selected file.')),
+      );
+      return;
+    }
+
+    final isXlsx = (file.extension ?? '').toLowerCase() == 'xlsx';
+
+    try {
+      final count = await DatabaseService().importCustomerClassFile(bytes, isXlsx: isXlsx);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Party Classification updated. Loaded $count options.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Party Classification update failed: $e')),
+      );
+    }
+  }
+
   void _updateCities() {
     if (_selectedProvince != null) {
       final selectedProvince = _canonicalLocationValue(_selectedProvince);
@@ -303,6 +361,11 @@ class _CityBrgyPageState extends State<CityBrgyPage> {
             onPressed: _importGeoHierarchyUpdate,
             icon: const Icon(Icons.upload_file),
             tooltip: 'Geo Hierarchy Update',
+          ),
+          IconButton(
+            onPressed: _importPartyClassificationUpdate,
+            icon: const Icon(Icons.rule_folder),
+            tooltip: 'Party Classification Update',
           ),
           IconButton(
             onPressed: () {
