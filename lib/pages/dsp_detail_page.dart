@@ -18,10 +18,12 @@ class DSPDetailPage extends StatefulWidget {
 
 class _DSPDetailPageState extends State<DSPDetailPage> {
   late Future<List<Customer>> _customersFuture;
+  late TextEditingController _searchController;
   String? _selectedStatus;
   String? _selectedCoverageDay;
   String? _selectedWklyCoverage;
   bool _onlyWithLocation = false;
+  String _searchQuery = '';
 
   final Map<String, String> _coverageDayMap = {
     'Monday': 'MON',
@@ -41,7 +43,14 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _loadCustomers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _loadCustomers() {
@@ -59,8 +68,19 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
       _selectedCoverageDay = null;
       _selectedWklyCoverage = null;
       _onlyWithLocation = false;
+      _searchController.clear();
+      _searchQuery = '';
       _loadCustomers();
     });
+  }
+
+  bool _matchesSearchQuery(Customer customer) {
+    if (_searchQuery.isEmpty) return true;
+    final query = _searchQuery.toLowerCase();
+    return customer.customerCode.toLowerCase().contains(query) ||
+        customer.customerName.toLowerCase().contains(query) ||
+        customer.firstName.toLowerCase().contains(query) ||
+        customer.lastName.toLowerCase().contains(query);
   }
 
   bool _hasValidLocation(Customer customer) {
@@ -100,6 +120,35 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by Code, Name, First Name, or Last Name',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -170,9 +219,10 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 } else {
                   final customers = snapshot.data!;
-                  final filteredCustomers = _onlyWithLocation
-                      ? customers.where(_hasValidLocation).toList()
-                      : customers;
+                  final filteredCustomers = customers
+                      .where((customer) => _matchesSearchQuery(customer))
+                      .where((customer) => !_onlyWithLocation || _hasValidLocation(customer))
+                      .toList();
 
                   if (filteredCustomers.isEmpty) {
                     return const Center(child: Text('No customers found.'));
