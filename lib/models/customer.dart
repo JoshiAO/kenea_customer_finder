@@ -11,12 +11,9 @@ class Customer {
   final String city;
   final String province;
   final String status;
-  final String retailEnvironment;
   final String partyClassificationDescription;
   final String coverageDay;
   final String wklyCoverage;
-  final int freqCount;
-  final String freq;
   final double? latitude;
   final double? longitude;
   final String phone;
@@ -39,12 +36,9 @@ class Customer {
     required this.city,
     required this.province,
     required this.status,
-    required this.retailEnvironment,
     required this.partyClassificationDescription,
     required this.coverageDay,
     required this.wklyCoverage,
-    required this.freqCount,
-    required this.freq,
     this.latitude,
     this.longitude,
     required this.phone,
@@ -97,15 +91,12 @@ class Customer {
       city: _readString(json, ['city', 'City', 'CITY', 'municipality', 'Municipality']),
       province: _readString(json, ['province', 'Province', 'PROVINCE', 'prov', 'Prov']),
       status: _readString(json, ['status', 'Status']),
-      retailEnvironment: _readString(json, ['retail_environment', 'retail environment', 'Retail Environment']),
       partyClassificationDescription: _readString(
         json,
         ['party_classification_description', 'party classification description', 'Party Classification Description'],
       ),
       coverageDay: _readString(json, ['coverage_day', 'coverage day', 'Coverage Day']),
       wklyCoverage: _readString(json, ['wkly_coverage', 'wkly coverage', 'Wkly Coverage']),
-      freqCount: int.tryParse(_readString(json, ['freq_count', 'freq count', 'Freq Count'])) ?? 0,
-      freq: _readString(json, ['freq', 'Freq']),
       latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
       longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
       phone: _readString(json, ['phone', 'Phone']),
@@ -133,12 +124,9 @@ class Customer {
       'city': city,
       'province': province,
       'status': status,
-      'retail_environment': retailEnvironment,
       'party_classification_description': partyClassificationDescription,
       'coverage_day': coverageDay,
       'wkly_coverage': wklyCoverage,
-      'freq_count': freqCount,
-      'freq': freq,
       'latitude': latitude,
       'longitude': longitude,
       'phone': phone,
@@ -163,12 +151,9 @@ class Customer {
     String? city,
     String? province,
     String? status,
-    String? retailEnvironment,
     String? partyClassificationDescription,
     String? coverageDay,
     String? wklyCoverage,
-    int? freqCount,
-    String? freq,
     double? latitude,
     double? longitude,
     String? phone,
@@ -191,12 +176,9 @@ class Customer {
       city: city ?? this.city,
       province: province ?? this.province,
       status: status ?? this.status,
-      retailEnvironment: retailEnvironment ?? this.retailEnvironment,
       partyClassificationDescription: partyClassificationDescription ?? this.partyClassificationDescription,
       coverageDay: coverageDay ?? this.coverageDay,
       wklyCoverage: wklyCoverage ?? this.wklyCoverage,
-      freqCount: freqCount ?? this.freqCount,
-      freq: freq ?? this.freq,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       phone: phone ?? this.phone,
