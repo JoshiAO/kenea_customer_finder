@@ -238,11 +238,11 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
                       final mapColor = hasLocation ? Colors.green : Colors.red;
 
                       final tile = ListTile(
-                        title: Text(customer.customerCode),
+                        title: Text(customer.customerName),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(customer.customerName),
+                            Text(customer.customerCode),
                             Text(customer.phone),
                             Text('${customer.firstName} ${customer.lastName}'.trim()),
                             Text(customer.address),

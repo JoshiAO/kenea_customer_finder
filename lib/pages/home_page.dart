@@ -12,6 +12,8 @@ import '../services/database_service.dart';
 import '../services/app_customization_notifier.dart';
 import '../services/import_notifier.dart';
 import '../models/counts.dart';
+import '../models/customer.dart';
+import 'customer_update_form.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -298,6 +300,133 @@ class _HomePageState extends State<HomePage> {
     } finally {
       notifier.finish(opId);
     }
+  }
+
+  Future<void> _showEditedCustomers() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.9,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Edited Customers',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: FutureBuilder<List<Customer>>(
+                      future: DatabaseService().getEditedCustomers(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (snapshot.hasError) {
+                          return Center(child: Text('Error: ${snapshot.error}'));
+                        }
+
+                        final editedCustomers = snapshot.data ?? <Customer>[];
+                        if (editedCustomers.isEmpty) {
+                          return const Center(child: Text('No edited customers found.'));
+                        }
+
+                        return ListView.builder(
+                          itemCount: editedCustomers.length,
+                          itemBuilder: (context, index) {
+                            final customer = editedCustomers[index];
+                            final editedFields = (customer.editedFields ?? '').trim();
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            customer.customerName,
+                                            style: const TextStyle(fontWeight: FontWeight.w600),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(customer.customerCode),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          const Text(
+                                            'Edited Fields',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            editedFields.isEmpty ? '-' : editedFields,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        minimumSize: const Size(0, 32),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      onPressed: () async {
+                                        await Navigator.of(sheetContext).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => CustomerUpdateForm(customer: customer),
+                                          ),
+                                        );
+                                        if (!mounted) return;
+                                        setState(_loadData);
+                                      },
+                                      child: const Text('View'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _pickHomeBackgroundImage() async {
@@ -851,9 +980,22 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 10),
                         SizedBox(
                           width: actionButtonsWidth,
-                          child: ElevatedButton(
-                            onPressed: _exportEdited,
-                            child: const Text('Export Edited Customers'),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _showEditedCustomers,
+                                  child: const Text('Show Edit'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _exportEdited,
+                                  child: const Text('Export Edit'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
