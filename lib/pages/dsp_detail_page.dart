@@ -22,8 +22,15 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
   String? _selectedStatus;
   String? _selectedCoverageDay;
   String? _selectedWklyCoverage;
+  String? _selectedProvince;
+  String? _selectedCity;
+  String? _selectedBarangay;
   bool _onlyWithLocation = false;
   String _searchQuery = '';
+  List<Map<String, dynamic>> _areas = [];
+  List<String> _provinces = [];
+  List<String> _cities = [];
+  List<String> _barangays = [];
 
   final Map<String, String> _coverageDayMap = {
     'Monday': 'MON',
@@ -45,6 +52,7 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
     super.initState();
     _searchController = TextEditingController();
     _loadCustomers();
+    _loadAreas();
   }
 
   @override
@@ -67,11 +75,70 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
       _selectedStatus = null;
       _selectedCoverageDay = null;
       _selectedWklyCoverage = null;
+      _selectedProvince = null;
+      _selectedCity = null;
+      _selectedBarangay = null;
       _onlyWithLocation = false;
       _searchController.clear();
       _searchQuery = '';
+      _updateCities();
       _loadCustomers();
     });
+  }
+
+  Future<void> _loadAreas() async {
+    final areas = await DatabaseService().loadAreas();
+    if (!mounted) return;
+    setState(() {
+      _areas = areas;
+      _provinces =
+          _areas.map((a) => (a['province'] as String?) ?? '').where((v) => v.trim().isNotEmpty).toSet().toList()
+            ..sort();
+      _updateCities();
+    });
+  }
+
+  void _updateCities() {
+    if (_selectedProvince != null && _selectedProvince!.trim().isNotEmpty) {
+      _cities = _areas
+          .where((a) => (a['province'] as String?) == _selectedProvince)
+          .map((a) => (a['city'] as String?) ?? '')
+          .where((v) => v.trim().isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+    } else {
+      _cities =
+          _areas.map((a) => (a['city'] as String?) ?? '').where((v) => v.trim().isNotEmpty).toSet().toList()
+            ..sort();
+    }
+
+    if (!_cities.contains(_selectedCity)) {
+      _selectedCity = null;
+    }
+
+    _updateBarangays();
+  }
+
+  void _updateBarangays() {
+    Iterable<Map<String, dynamic>> scoped = _areas;
+    if (_selectedProvince != null && _selectedProvince!.trim().isNotEmpty) {
+      scoped = scoped.where((a) => (a['province'] as String?) == _selectedProvince);
+    }
+    if (_selectedCity != null && _selectedCity!.trim().isNotEmpty) {
+      scoped = scoped.where((a) => (a['city'] as String?) == _selectedCity);
+    }
+
+    _barangays = scoped
+        .map((a) => (a['barangay'] as String?) ?? '')
+        .where((v) => v.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    if (!_barangays.contains(_selectedBarangay)) {
+      _selectedBarangay = null;
+    }
   }
 
   bool _matchesSearchQuery(Customer customer) {
@@ -88,6 +155,19 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
     final lng = customer.longitude;
     if (lat == null || lng == null) return false;
     return lat != 0 && lng != 0;
+  }
+
+  bool _matchesLocationFilters(Customer customer) {
+    final provinceMatch = _selectedProvince == null ||
+        _selectedProvince!.isEmpty ||
+        customer.province.toLowerCase() == _selectedProvince!.toLowerCase();
+    final cityMatch = _selectedCity == null ||
+        _selectedCity!.isEmpty ||
+        customer.city.toLowerCase() == _selectedCity!.toLowerCase();
+    final barangayMatch = _selectedBarangay == null ||
+        _selectedBarangay!.isEmpty ||
+        customer.barangay.toLowerCase() == _selectedBarangay!.toLowerCase();
+    return provinceMatch && cityMatch && barangayMatch;
   }
 
   @override
@@ -155,7 +235,67 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
               children: [
                 Expanded(
                   child: DropdownButton<String>(
-                    hint: Text('Status'),
+                    isExpanded: true,
+                    hint: const Text('Province'),
+                    value: _selectedProvince,
+                    items: [
+                      const DropdownMenuItem<String>(value: null, child: Text('Province')),
+                      ..._provinces.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedProvince = value;
+                        _updateCities();
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text('City'),
+                    value: _selectedCity,
+                    items: [
+                      const DropdownMenuItem<String>(value: null, child: Text('City')),
+                      ..._cities.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCity = value;
+                        _updateBarangays();
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text('Barangay'),
+                    value: _selectedBarangay,
+                    items: [
+                      const DropdownMenuItem<String>(value: null, child: Text('Barangay')),
+                      ..._barangays.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedBarangay = value;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text('Status'),
                     value: _selectedStatus,
                     items: const [
                       DropdownMenuItem<String>(value: null, child: Text('Status')),
@@ -173,7 +313,8 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
                 SizedBox(width: 8),
                 Expanded(
                   child: DropdownButton<String>(
-                    hint: Text('Coverage Day'),
+                    isExpanded: true,
+                    hint: const Text('Coverage Day'),
                     value: _selectedCoverageDay,
                     items: [
                       const DropdownMenuItem<String>(value: null, child: Text('Coverage Day')),
@@ -191,7 +332,8 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
                 SizedBox(width: 8),
                 Expanded(
                   child: DropdownButton<String>(
-                    hint: Text('Wkly Coverage'),
+                    isExpanded: true,
+                    hint: const Text('Wkly Coverage'),
                     value: _selectedWklyCoverage,
                     items: [
                       const DropdownMenuItem<String>(value: null, child: Text('Wkly Coverage')),
@@ -221,6 +363,7 @@ class _DSPDetailPageState extends State<DSPDetailPage> {
                   final customers = snapshot.data!;
                   final filteredCustomers = customers
                       .where((customer) => _matchesSearchQuery(customer))
+                      .where((customer) => _matchesLocationFilters(customer))
                       .where((customer) => !_onlyWithLocation || _hasValidLocation(customer))
                       .toList();
 

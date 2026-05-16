@@ -625,7 +625,11 @@ class _CustomerInfoModalState extends State<CustomerInfoModal> with SingleTicker
     final targetDir = Directory(folderPath);
 
     if (await targetDir.exists()) {
-      final existing = targetDir.listSync().whereType<File>().toList();
+      final existing = targetDir
+          .listSync()
+          .whereType<File>()
+          .where((file) => p.basename(file.path).toLowerCase().startsWith('image_'))
+          .toList();
       for (final file in existing) {
         await file.delete();
       }
