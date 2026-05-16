@@ -298,7 +298,7 @@ class _TinDocumentCapturePageState extends State<TinDocumentCapturePage> {
     final isGuideAligned = docBounds != null && _isInGuideRegion(docBounds, frameSize);
     final isTinZoneAligned = tinCandidate != null && _isInTinValueRegion(tinCandidate.bounds, frameSize);
     final hasAutoTinLock = tinCandidate != null && isTinZoneAligned;
-    final autoTinRectNormalized = hasAutoTinLock ? _toNormalizedRect(tinCandidate?.bounds, frameSize) : null;
+    final autoTinRectNormalized = hasAutoTinLock ? _toNormalizedRect(tinCandidate.bounds, frameSize) : null;
 
     double score = 0;
     if (tinCandidate != null) score += 0.30;
