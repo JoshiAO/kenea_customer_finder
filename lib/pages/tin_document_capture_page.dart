@@ -242,7 +242,17 @@ class _TinDocumentCapturePageState extends State<TinDocumentCapturePage> {
     }
 
     final tinSelection = _extractTinCandidatesFromLines(lineHits, normalizedFullText, docBounds);
-    final tinCandidate = tinSelection.best;
+    final zoneFallbackCandidate = _extractTinCandidateFromTinZone(lineHits, frameSize);
+    var tinCandidate = tinSelection.best;
+    if (zoneFallbackCandidate != null) {
+      final bestInTinZone = tinCandidate != null && _isInTinValueRegion(tinCandidate.bounds, frameSize);
+      final shouldUseZoneFallback = tinCandidate == null ||
+          !bestInTinZone ||
+          zoneFallbackCandidate.contextScore >= (tinCandidate.contextScore + 0.04);
+      if (shouldUseZoneFallback) {
+        tinCandidate = zoneFallbackCandidate;
+      }
+    }
     final hasBirKeyword = _containsAny(normalizedFullText, const [
       'BIR',
       'BUREAU OF INTERNAL REVENUE',
@@ -314,15 +324,23 @@ class _TinDocumentCapturePageState extends State<TinDocumentCapturePage> {
       hasBirKeyword || (hasReceiptInvoiceKeyword && hasPhilippinesKeyword) || topKeywordHits > 0;
     final allowsTiltFallback =
       !isTinInPrimaryRegion && isTinInTiltTolerantRegion && hasStrongTinLabelNearNumber;
-    final effectiveThreshold = isGuideAligned ? 0.72 : _autoCaptureThreshold;
+    final effectiveThreshold = isGuideAligned
+      ? (isTinZoneAligned ? 0.66 : 0.72)
+      : _autoCaptureThreshold;
+    final requiredTinContextScore = isTinZoneAligned ? 0.08 : 0.20;
     final isQualified = tinCandidate != null &&
       score >= effectiveThreshold &&
       hasIdentitySignal &&
       (hasTinLabelNearNumber || hasTinLabel) &&
-      tinContextScore >= 0.20 &&
+      tinContextScore >= requiredTinContextScore &&
       hasRegionEvidence &&
       (isTinZoneAligned || hasAutoTinLock) &&
       (isTinInPrimaryRegion || allowsTiltFallback);
+
+    final topCandidates = tinSelection.ranked.toList(growable: true);
+    if (tinCandidate != null && !topCandidates.any((candidate) => candidate.value == tinCandidate!.value)) {
+      topCandidates.insert(0, _TinCandidateScore(value: tinCandidate.value, score: tinCandidate.contextScore));
+    }
 
     return _BirTinDetection(
       tin: tinCandidate?.value,
@@ -332,7 +350,65 @@ class _TinDocumentCapturePageState extends State<TinDocumentCapturePage> {
       isTinZoneAligned: isTinZoneAligned,
       hasAutoTinLock: hasAutoTinLock,
       autoTinRectNormalized: autoTinRectNormalized,
-      topCandidates: tinSelection.ranked.take(3).toList(growable: false),
+      topCandidates: topCandidates.take(3).toList(growable: false),
+    );
+  }
+
+  _TinCandidate? _extractTinCandidateFromTinZone(List<_OcrLineHit> lines, Size frameSize) {
+    final zone = _computeTinValueZoneRect(_computeGuideRect(frameSize));
+    final zoneLines = lines.where((line) {
+      final bounds = line.bounds;
+      if (bounds == null) return false;
+      final intersection = bounds.intersect(zone);
+      return !intersection.isEmpty;
+    }).toList(growable: false);
+
+    if (zoneLines.isEmpty) return null;
+
+    Rect? mergedBounds;
+    final zoneTextBuffer = StringBuffer();
+    final values = <String>{};
+
+    for (final line in zoneLines) {
+      final bounds = line.bounds;
+      if (bounds != null) {
+        mergedBounds = mergedBounds == null ? bounds : mergedBounds.expandToInclude(bounds);
+      }
+      zoneTextBuffer.write(' ${line.text}');
+      values.addAll(_extractTinMatches(line.text));
+    }
+
+    final joinedZoneText = zoneTextBuffer.toString().trim();
+    values.addAll(_extractTinMatches(joinedZoneText));
+
+    if (values.isEmpty) {
+      return null;
+    }
+
+    String? bestValue;
+    double bestScore = -1;
+    for (final value in values) {
+      final digitsOnly = value.replaceAll('-', '');
+      final branchLength = value.split('-').last.length;
+      double score = 0.45;
+      if (digitsOnly.length == 12) score += 0.28;
+      if (digitsOnly.length >= 11 && digitsOnly.length <= 13) score += 0.12;
+      if (branchLength == 4) score += 0.10;
+      if (score > bestScore) {
+        bestScore = score;
+        bestValue = value;
+      }
+    }
+
+    if (bestValue == null) return null;
+    if (bestScore > 1) bestScore = 1;
+
+    return _TinCandidate(
+      value: bestValue,
+      bounds: mergedBounds,
+      contextScore: bestScore,
+      hasLabelContext: true,
+      hasStrongLabelContext: true,
     );
   }
 
@@ -840,7 +916,18 @@ class _TinDocumentCapturePageState extends State<TinDocumentCapturePage> {
                     Expanded(
                       child: Stack(
                         children: [
-                          Positioned.fill(child: CameraPreview(controller)),
+                          Positioned.fill(
+                            child: ClipRect(
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: controller.value.previewSize?.height ?? 1280,
+                                  height: controller.value.previewSize?.width ?? 720,
+                                  child: CameraPreview(controller),
+                                ),
+                              ),
+                            ),
+                          ),
                           Positioned.fill(
                             child: _TinGuideOverlay(
                               documentAspectRatio: _guideDocumentAspectRatio,
