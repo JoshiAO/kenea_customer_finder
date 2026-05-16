@@ -410,15 +410,18 @@ class _CustomerUpdateFormState extends State<CustomerUpdateForm> {
             TextField(controller: _lastNameController, decoration: InputDecoration(labelText: 'Last Name')),
             TextField(
               controller: _tinNoController,
+              readOnly: true,
+              enableInteractiveSelection: false,
+              onTap: _captureTinFromCamera,
               decoration: InputDecoration(
                 labelText: 'TIN No',
+                helperText: 'Captured from document only',
                 suffixIcon: IconButton(
                   onPressed: _captureTinFromCamera,
                   icon: const Icon(Icons.camera_alt_outlined),
                   tooltip: 'Capture TIN',
                 ),
               ),
-              keyboardType: TextInputType.number,
             ),
             DropdownButtonFormField<String>(
               initialValue: _valueIfPresent(_provinces, _selectedProvince),
